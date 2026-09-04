@@ -1,0 +1,18 @@
+.env
+target/
+*.class
+*.log
+.idea/
+*.iml
+.vscode/
+
+# Phase 2 agent binaries (provided by user, not committed)
+agents/*
+!agents/.gitkeep
+
+# IDE workspace metadata (Eclipse/STS)
+.metadata/
+.project
+.classpath
+.settings/
+bin/

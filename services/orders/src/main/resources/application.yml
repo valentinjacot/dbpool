@@ -1,0 +1,31 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: orders
+  datasource:
+    url: jdbc:postgresql://postgres:5432/appdb
+    username: appuser
+    password: apppass
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 10000      # 10s -> fast, visible errors
+      pool-name: orders-pool
+      register-mbeans: true          # expose HikariCP JMX MBeans (Phase 2 JMX rule)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    enable:
+      hikaricp: true
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.zaxxer.hikari: DEBUG

@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: afi-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      POSTGRES_USER: ${POSTGRES_USER:-appuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apppass}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-appdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  orders:
+    build: ./services/orders
+    container_name: afi-orders
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      # Phase 2: set to the -javaagent flags (see appd/healthrules.md); empty = agent-free.
+      JAVA_TOOL_OPTIONS: ${ORDERS_JAVA_TOOL_OPTIONS:-}
+    volumes:
+      - ./agents:/opt/appdynamics:ro
+
+  inventory:
+    build: ./services/inventory
+    container_name: afi-inventory
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      JAVA_TOOL_OPTIONS: ${INVENTORY_JAVA_TOOL_OPTIONS:-}
+    volumes:
+      - ./agents:/opt/appdynamics:ro
+
+  frontend:
+    build: ./services/frontend
+    container_name: afi-frontend
+    depends_on:
+      - orders
+      - inventory
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: ${FRONTEND_JAVA_TOOL_OPTIONS:-}
+    volumes:
+      - ./agents:/opt/appdynamics:ro
+
+volumes:
+  pgdata:
