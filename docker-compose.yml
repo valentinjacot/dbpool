@@ -57,5 +57,45 @@ services:
     volumes:
       - ./agents:/opt/appdynamics:ro
 
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: afi-postgres-exporter
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_MONITOR_USER:-appd_monitor}:${POSTGRES_MONITOR_PASSWORD:-appd_monitor_pass}@postgres:5432/${POSTGRES_DB:-appdb}?sslmode=disable"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: afi-prometheus
+    depends_on:
+      - orders
+      - inventory
+      - frontend
+      - postgres-exporter
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: afi-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3000:3000"
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:

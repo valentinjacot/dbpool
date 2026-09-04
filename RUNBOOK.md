@@ -26,9 +26,10 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Erwartung: `afi-postgres`, `afi-orders`, `afi-inventory`, `afi-frontend`
-laufen. Postgres muss `healthy` sein, bevor `orders` und `inventory`
-hochfahren (Dependency in `docker-compose.yml`).
+Erwartung: `afi-postgres`, `afi-orders`, `afi-inventory`, `afi-frontend`,
+`afi-postgres-exporter`, `afi-prometheus` und `afi-grafana` laufen. Postgres
+muss `healthy` sein, bevor `orders` und `inventory` hochfahren (Dependency in
+`docker-compose.yml`).
 
 Health-Checks pruefen:
 
@@ -136,6 +137,38 @@ docker compose exec postgres psql -U appuser -d appdb -c "SELECT count(*) FROM p
 Erwartung: nur wenige aktive Sessions (die mit `pg_sleep`), die Datenbank
 selbst ist nicht ueberlastet. Das untermauert die Aussage aus dem Zielbild:
 der Engpass ist der Pool, nicht die Datenbank.
+
+**d) Grafana-Dashboard (visuelle Kontrolle ohne AppD, als Vergleichsbasis
+fuer spaeter):**
+
+Prometheus und Grafana sind Teil des Compose-Stacks (siehe
+`observability/`) und scrapen die bereits vorhandenen Actuator-Endpunkte
+sowie Postgres (via `postgres-exporter` mit dem `appd_monitor`-Benutzer).
+Kein zusaetzlicher Schritt noetig, das Dashboard ist automatisch
+provisioniert.
+
+- Grafana: http://localhost:3000 (anonymer Viewer-Zugriff aktiv, Login
+  `admin` / `admin` bzw. `$GRAFANA_ADMIN_PASSWORD` fuer Aenderungen)
+- Dashboard: "AFI UC3 - DB Connection Pool Overload (Phase 1, no AppD)"
+- Prometheus direkt: http://localhost:9090
+
+Panels:
+
+1. Orders-Pool: aktive vs. idle Verbindungen (Maximum = 5)
+2. Orders-Pool: `ThreadsAwaitingConnection` (Pending) mit Schwellenwerten
+   bei 1 (Warning) und 5 (Critical), analog zur spaeteren Health Rule
+   "Pool Exhaustion" aus `appd/healthrules.md`
+3. Orders: Connection-Timeout-Fehler pro Minute
+4. Frontend: 5xx-Fehlerrate (zeigt die Propagation von `orders` nach
+   `frontend`)
+5. Inventory-Pool: aktive Verbindungen (Kontrast, bleibt unberuehrt)
+6. Postgres: verbundene Backends auf `appdb` (bleibt ruhig)
+
+Waehrend `overload.js` oder `overload.sh` laeuft, das Dashboard offen
+lassen (Auto-Refresh 5s, Zeitfenster 15 Minuten). Dies ist der direkte
+Vergleichspunkt fuer die spaetere AppD-Ansicht (Flow Map, Health Rule,
+Anomaly-Detection-Event): dieselben Signale, hier ohne Agent aus
+Actuator-Metriken.
 
 ## 7. Ueberlastung beenden / zuruecksetzen
 

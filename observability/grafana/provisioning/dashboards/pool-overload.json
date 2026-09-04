@@ -1,0 +1,143 @@
+{
+  "uid": "afi-uc3-pool-overload",
+  "title": "AFI UC3 - DB Connection Pool Overload (Phase 1, no AppD)",
+  "tags": ["afi", "uc3", "phase1"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Orders pool - active vs idle connections (max size = 5)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{pool=\"orders-pool\"}",
+          "legendFormat": "active"
+        },
+        {
+          "expr": "hikaricp_connections_idle{pool=\"orders-pool\"}",
+          "legendFormat": "idle"
+        },
+        {
+          "expr": "hikaricp_connections_max{pool=\"orders-pool\"}",
+          "legendFormat": "max pool size"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Orders pool - threads awaiting connection (early-detection signal)",
+      "description": "This is the metric the Phase 2 Health Rule 'Pool Exhaustion' will watch: Warning at >0, Critical at >=5 (see appd/healthrules.md).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "custom": { "thresholdsStyle": { "mode": "area" } }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_pending{pool=\"orders-pool\"}",
+          "legendFormat": "threads awaiting connection"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Orders - connection timeout errors / min",
+      "description": "Counts SQLTransientConnectionException ('Connection is not available, request timed out') events from HikariCP.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "60 * rate(hikaricp_connections_timeout_total{pool=\"orders-pool\"}[1m])",
+          "legendFormat": "timeouts/min"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Frontend - HTTP 5xx rate (propagation from orders to caller)",
+      "description": "Frontend returns 502 when the call to orders/slow fails - this is how the anomaly propagates up the flow map.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"frontend\",status=~\"5..\"}[30s]))",
+          "legendFormat": "5xx/s"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"frontend\",status=~\"2..\"}[30s]))",
+          "legendFormat": "2xx/s"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Inventory pool - active connections (unaffected, contrast)",
+      "description": "Inventory has its own pool (size 10) and is not touched by the orders overload - shows the fault is scoped to one tier.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{pool=\"inventory-pool\"}",
+          "legendFormat": "active"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Postgres - connected backends on appdb (DB itself stays calm)",
+      "description": "Counts all backends (idle + active) on appdb via pg_stat_database. Confirms the story: the bottleneck is the pool, not the database. Scraped via postgres_exporter using the appd_monitor read-only role.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_database_numbackends{datname=\"appdb\"}",
+          "legendFormat": "backends on appdb"
+        }
+      ]
+    }
+  ]
+}
