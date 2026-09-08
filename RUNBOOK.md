@@ -147,10 +147,13 @@ sowie Postgres (via `postgres-exporter` mit dem `appd_monitor`-Benutzer).
 Kein zusaetzlicher Schritt noetig, das Dashboard ist automatisch
 provisioniert.
 
-- Grafana: http://localhost:3000 (anonymer Viewer-Zugriff aktiv, Login
-  `admin` / `admin` bzw. `$GRAFANA_ADMIN_PASSWORD` fuer Aenderungen)
+- Grafana: http://localhost:3001 (anonymer Viewer-Zugriff aktiv, Login
+  `admin` / `admin` bzw. `$GRAFANA_ADMIN_PASSWORD` fuer Aenderungen). Port
+  ueber `GRAFANA_HOST_PORT` in `.env` anpassbar, Standard 3001 statt 3000,
+  damit kein Konflikt mit anderen lokalen Grafana-Stacks entsteht.
 - Dashboard: "AFI UC3 - DB Connection Pool Overload (Phase 1, no AppD)"
-- Prometheus direkt: http://localhost:9090
+- Prometheus direkt: http://localhost:9091 (Port ueber
+  `PROMETHEUS_HOST_PORT` anpassbar, Standard 9091 statt 9090)
 
 Panels:
 
