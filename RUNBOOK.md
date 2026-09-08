@@ -88,6 +88,27 @@ Oder mit dem Bash-Fallback (30 gleichzeitige Requests, 300 total):
 ./loadtest/overload.sh 30 300
 ```
 
+**Kombiniertes Szenario fuer die Live-Demo:** `loadtest/scenario.js` bzw.
+`loadtest/scenario.sh` fahren Schritt 4 und 5 in einem Lauf: zuerst ruhige
+Baseline (Standard 5 Minuten), danach automatisch die Ueberlastung
+(Standard 2 Minuten). Damit muss man waehrend der Demo nichts manuell
+umschalten.
+
+Mit k6:
+
+```bash
+docker run --rm --network host -v "$PWD/loadtest:/scripts" \
+  -e BASELINE_DURATION=5m -e OVERLOAD_DURATION=2m \
+  grafana/k6 run /scripts/scenario.js
+```
+
+Oder mit dem Bash-Fallback (Reihenfolge: base_url, baseline_seconds,
+overload_seconds, overload_concurrency):
+
+```bash
+./loadtest/scenario.sh http://localhost:8080 300 120 30
+```
+
 ## 6. Ueberlastung ohne AppDynamics sichtbar machen
 
 Das ist das Abnahmekriterium fuer Phase 1: die Anomalie ist erkennbar, auch
