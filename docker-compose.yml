@@ -25,11 +25,22 @@ services:
         condition: service_healthy
     ports:
       - "8081:8081"
+    entrypoint: ["/bin/sh", "/docker-entrypoint-appd.sh"]
     environment:
-      # Phase 2: set to the -javaagent flags (see appd/healthrules.md); empty = agent-free.
-      JAVA_TOOL_OPTIONS: ${ORDERS_JAVA_TOOL_OPTIONS:-}
+      # Phase 2: set AGENT_ENABLED=true once controller keys are available;
+      # empty/false = agent-free, unchanged Phase 1 behaviour.
+      AGENT_ENABLED: ${AGENT_ENABLED:-false}
+      CONTROLLER_HOST: ${CONTROLLER_HOST:-}
+      CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      SSL_ENABLED: ${SSL_ENABLED:-false}
+      ACCOUNT_NAME: ${ACCOUNT_NAME:-}
+      ACCOUNT_ACCESS_KEY: ${ACCOUNT_ACCESS_KEY:-}
+      APPD_APPLICATION_NAME: ${APPD_APPLICATION_NAME:-AFI-UC3-Demo}
+      APPD_TIER_NAME: orders
+      APPD_NODE_NAME: orders-01
     volumes:
-      - ./agents:/opt/appdynamics:ro
+      - ./agents/java-agent:/opt/appdynamics
+      - ./appd/entrypoint.sh:/docker-entrypoint-appd.sh:ro
 
   inventory:
     build: ./services/inventory
@@ -39,10 +50,20 @@ services:
         condition: service_healthy
     ports:
       - "8082:8082"
+    entrypoint: ["/bin/sh", "/docker-entrypoint-appd.sh"]
     environment:
-      JAVA_TOOL_OPTIONS: ${INVENTORY_JAVA_TOOL_OPTIONS:-}
+      AGENT_ENABLED: ${AGENT_ENABLED:-false}
+      CONTROLLER_HOST: ${CONTROLLER_HOST:-}
+      CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      SSL_ENABLED: ${SSL_ENABLED:-false}
+      ACCOUNT_NAME: ${ACCOUNT_NAME:-}
+      ACCOUNT_ACCESS_KEY: ${ACCOUNT_ACCESS_KEY:-}
+      APPD_APPLICATION_NAME: ${APPD_APPLICATION_NAME:-AFI-UC3-Demo}
+      APPD_TIER_NAME: inventory
+      APPD_NODE_NAME: inventory-01
     volumes:
-      - ./agents:/opt/appdynamics:ro
+      - ./agents/java-agent:/opt/appdynamics
+      - ./appd/entrypoint.sh:/docker-entrypoint-appd.sh:ro
 
   frontend:
     build: ./services/frontend
@@ -52,10 +73,20 @@ services:
       - inventory
     ports:
       - "8080:8080"
+    entrypoint: ["/bin/sh", "/docker-entrypoint-appd.sh"]
     environment:
-      JAVA_TOOL_OPTIONS: ${FRONTEND_JAVA_TOOL_OPTIONS:-}
+      AGENT_ENABLED: ${AGENT_ENABLED:-false}
+      CONTROLLER_HOST: ${CONTROLLER_HOST:-}
+      CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      SSL_ENABLED: ${SSL_ENABLED:-false}
+      ACCOUNT_NAME: ${ACCOUNT_NAME:-}
+      ACCOUNT_ACCESS_KEY: ${ACCOUNT_ACCESS_KEY:-}
+      APPD_APPLICATION_NAME: ${APPD_APPLICATION_NAME:-AFI-UC3-Demo}
+      APPD_TIER_NAME: frontend
+      APPD_NODE_NAME: frontend-01
     volumes:
-      - ./agents:/opt/appdynamics:ro
+      - ./agents/java-agent:/opt/appdynamics
+      - ./appd/entrypoint.sh:/docker-entrypoint-appd.sh:ro
 
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
@@ -94,6 +125,44 @@ services:
       - grafanadata:/var/lib/grafana
     ports:
       - "${GRAFANA_HOST_PORT:-3001}:3000"
+
+  # ---- Phase 2: AppDynamics agents, opt-in (start with `docker compose
+  # --profile appd up -d` once controller keys are set in .env) ----
+
+  db-agent:
+    build: ./agents/db-agent
+    container_name: afi-db-agent
+    profiles: ["appd"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APPDYNAMICS_CONTROLLER_HOST_NAME: ${CONTROLLER_HOST:-}
+      APPDYNAMICS_CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      APPDYNAMICS_CONTROLLER_SSL_ENABLED: ${SSL_ENABLED:-false}
+      APPDYNAMICS_AGENT_ACCOUNT_NAME: ${ACCOUNT_NAME:-}
+      APPDYNAMICS_AGENT_ACCOUNT_ACCESS_KEY: ${ACCOUNT_ACCESS_KEY:-}
+      APPDYNAMICS_DB_AGENT_NAME: afi-uc3-db-agent
+      APPDYNAMICS_DB_PROPERTIES: "-Ddbagent.telemetry.enabled=true"
+
+  machine-agent:
+    build: ./appd/machine-agent
+    container_name: afi-machine-agent
+    profiles: ["appd"]
+    depends_on:
+      - orders
+    volumes:
+      - ./agents/machine-agent:/opt/appdynamics/machine-agent
+    command: ["./bin/machine-agent"]
+    environment:
+      APPDYNAMICS_CONTROLLER_HOST_NAME: ${CONTROLLER_HOST:-}
+      APPDYNAMICS_CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      APPDYNAMICS_CONTROLLER_SSL_ENABLED: ${SSL_ENABLED:-false}
+      APPDYNAMICS_AGENT_ACCOUNT_NAME: ${ACCOUNT_NAME:-}
+      APPDYNAMICS_AGENT_ACCOUNT_ACCESS_KEY: ${ACCOUNT_ACCESS_KEY:-}
+      # Enables Server Visibility (hardware metrics + Host node on the flow
+      # map) - this is what supplies the topology's 5th component.
+      APPDYNAMICS_SIM_ENABLED: "true"
 
 volumes:
   pgdata:

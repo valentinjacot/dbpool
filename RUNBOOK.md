@@ -181,6 +181,35 @@ Actuator-Metriken.
 curl -s http://localhost:8081/actuator/metrics/hikaricp.connections.active
 ```
 
+## 8. Phase 2 vorbereitet (Agenten vorhanden, Controller-Zugang steht noch aus)
+
+Die AppDynamics-Agent-Binaries (Java Agent, Database Agent, Machine Agent)
+sind bereits heruntergeladen, unter `./agents/` entpackt (nicht committed)
+und in `docker-compose.yml` verdrahtet. Getestet mit einem ungueltigen
+Controller-Host: alle drei Agenten starten sauber, lesen ihre Konfiguration
+korrekt aus den Umgebungsvariablen und scheitern erwartungsgemaess nur an
+der DNS-Aufloesung des Controllers. Details siehe `appd/healthrules.md`.
+
+Solange `.env` keine echten Controller-Werte enthaelt, bleibt der Stack
+100% Phase-1-Verhalten: `docker compose up -d` startet den Java Agent nicht
+(`AGENT_ENABLED=false`), und `db-agent`/`machine-agent` starten ueberhaupt
+nicht (Compose-Profile `appd`, nicht Teil des Standard-Starts).
+
+Sobald Controller-Zugang existiert:
+
+```bash
+# In .env setzen: AGENT_ENABLED=true, CONTROLLER_HOST, CONTROLLER_PORT,
+# SSL_ENABLED, ACCOUNT_NAME, ACCOUNT_ACCESS_KEY
+docker compose up -d                          # frontend/orders/inventory neu mit Java Agent
+docker compose --profile appd up -d db-agent machine-agent
+```
+
+Danach in der Controller-UI pruefen: 3 Tiers + 1 DB-Node + 1 Host-Node = 5
+Komponenten auf der Flow Map. Die weiteren Schritte (JMX-Metric-Regel,
+PostgreSQL-Collector, Anomaly-Detection-Baseline, Health Rule, Policy/
+Action) sind in `appd/healthrules.md` vorbereitet und werden nach dem
+ersten Controller-Zugriff hier im Runbook ergaenzt.
+
 ## Demo-Ablauf (Zielbild, inkl. Phase 2)
 
 1. Flow Map zeigen: `frontend -> orders -> DB`, `orders -> inventory -> DB`,
