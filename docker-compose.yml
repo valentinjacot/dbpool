@@ -38,6 +38,7 @@ services:
       APPD_APPLICATION_NAME: ${APPD_APPLICATION_NAME:-AFI-UC3-Demo}
       APPD_TIER_NAME: orders
       APPD_NODE_NAME: orders-01
+      APPD_UNIQUE_HOST_ID: afi-demo-host
     volumes:
       - ./agents/java-agent:/opt/appdynamics
       - ./appd/entrypoint.sh:/docker-entrypoint-appd.sh:ro
@@ -61,6 +62,7 @@ services:
       APPD_APPLICATION_NAME: ${APPD_APPLICATION_NAME:-AFI-UC3-Demo}
       APPD_TIER_NAME: inventory
       APPD_NODE_NAME: inventory-01
+      APPD_UNIQUE_HOST_ID: afi-demo-host
     volumes:
       - ./agents/java-agent:/opt/appdynamics
       - ./appd/entrypoint.sh:/docker-entrypoint-appd.sh:ro
@@ -84,6 +86,7 @@ services:
       APPD_APPLICATION_NAME: ${APPD_APPLICATION_NAME:-AFI-UC3-Demo}
       APPD_TIER_NAME: frontend
       APPD_NODE_NAME: frontend-01
+      APPD_UNIQUE_HOST_ID: afi-demo-host
     volumes:
       - ./agents/java-agent:/opt/appdynamics
       - ./appd/entrypoint.sh:/docker-entrypoint-appd.sh:ro

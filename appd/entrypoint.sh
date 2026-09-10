@@ -16,6 +16,7 @@ if [ "${AGENT_ENABLED:-false}" = "true" ]; then
     [ -n "${APPD_APPLICATION_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.applicationName=${APPD_APPLICATION_NAME}"
     [ -n "${APPD_TIER_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.tierName=${APPD_TIER_NAME}"
     [ -n "${APPD_NODE_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.nodeName=${APPD_NODE_NAME}"
+    [ -n "${APPD_UNIQUE_HOST_ID:-}" ] && OPTS="$OPTS -Dappdynamics.agent.uniqueHostId=${APPD_UNIQUE_HOST_ID}"
     # Redact the access key before logging - OPTS itself keeps the real
     # value for the actual java invocation below.
     SAFE_OPTS=$(echo "$OPTS" | sed -E 's/(accountAccessKey=)[^ ]+/\1****/')

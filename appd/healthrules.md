@@ -17,10 +17,15 @@ Agent binaries live under `./agents/` (gitignored, not committed):
   `AppServerAgent-*.zip`). Bind-mounted into `orders`, `inventory`,
   `frontend` at `/opt/appdynamics`. Injected via `appd/entrypoint.sh`, which
   only adds `-javaagent:...` and the `-Dappdynamics.*` system properties
-  when `AGENT_ENABLED=true` in `.env`. Verified: with a dummy controller
-  host, the agent logged `Started AppDynamics Java Agent Successfully.`,
-  picked up the correct tier/node/application names, and the app kept
-  serving traffic (agent registration failure is non-blocking).
+  when `AGENT_ENABLED=true` in `.env`. All three also get
+  `-Dappdynamics.agent.uniqueHostId=afi-demo-host` (`APPD_UNIQUE_HOST_ID`
+  in `docker-compose.yml`), same value as the host-run Machine Agent, so
+  the controller correlates all 3 tiers' nodes with that one host instead
+  of each container's own ephemeral hostname. Verified against the real
+  controller: `Started AppDynamics Java Agent Successfully.` and
+  `Registered app server agent with Node ID[...] Component ID[...]
+  Application ID [10564]` on all three, correct tier/node/application
+  names, `uniqueHostId` present in the logged startup args.
 - **Database Agent**: `db-agent` service (compose profile `appd`) runs the
   official prebuilt image `appdynamics/db-agent:latest` from Docker Hub
   (currently v26.7.0.5723). Earlier versions shipped their own Dockerfile

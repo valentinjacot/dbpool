@@ -208,7 +208,11 @@ Controller-Zugang ist eingerichtet (`se-lab.saas.appdynamics.com`), alle
 drei Agenten laufen und sind erfolgreich registriert:
 
 - **Java Agent** auf `frontend`/`orders`/`inventory` (`AGENT_ENABLED=true`
-  in `.env`, siehe `appd/entrypoint.sh`).
+  in `.env`, siehe `appd/entrypoint.sh`). Alle drei laufen zusaetzlich mit
+  `uniqueHostId=afi-demo-host` (derselbe Wert wie beim Machine Agent unten),
+  damit der Controller die drei Tier-Nodes mit diesem einen Host
+  korreliert statt mit dem zufaelligen Hostnamen ihres jeweiligen
+  Containers.
 - **Database Agent** als Container `db-agent`
   (`docker compose --profile appd up -d db-agent`, Bild
   `appdynamics/db-agent:latest`).
