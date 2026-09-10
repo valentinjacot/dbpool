@@ -74,6 +74,28 @@ curl -s http://localhost:8081/actuator/metrics/hikaricp.connections.active
 curl -s http://localhost:8081/actuator/metrics/hikaricp.connections.pending
 ```
 
+**Lange Baseline fuer das Anomaly-Detection-Training (z.B. 24h):**
+`normal.js` eignet sich fuer einen kurzen Check, nicht fuer einen
+unbeaufsichtigten Mehrstunden-Lauf. Dafuer gibt es
+`loadtest/baseline-24h.sh` - laeuft im Hintergrund (uebersteht ein
+getrenntes Terminal/SSH), gleiches Lastprofil wie `normal.js` (2
+gleichzeitige Checkouts, Pool bleibt ruhig), mit periodischer
+Zusammenfassung statt einem Log pro Request:
+
+```bash
+./loadtest/baseline-24h.sh start                # 24h gegen localhost:8080
+./loadtest/baseline-24h.sh start 3600            # z.B. 1h als Kurztest
+./loadtest/baseline-24h.sh status                # laeuft? letzte Zusammenfassung
+./loadtest/baseline-24h.sh logs                  # Zusammenfassung live verfolgen (Strg+C zum Beenden der Anzeige)
+./loadtest/baseline-24h.sh stop                  # vorzeitig abbrechen
+```
+
+Zusammenfassung alle 5 Minuten unter
+`loadtest/.baseline-run/baseline.summary.log` (Request- und Fehlerzahl,
+verbleibende Zeit). Getestet mit einem 20s-Lauf: startet im Hintergrund,
+laeuft die volle Dauer durch, beendet sich selbst, raeumt die Pid-Datei
+auf, 0 Fehler.
+
 ## 5. Ueberlastung auslösen
 
 Mit k6:

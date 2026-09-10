@@ -10,6 +10,9 @@ target/
 agents/*
 !agents/.gitkeep
 
+# Baseline load generator runtime state (pidfile, logs, per-request results)
+loadtest/.baseline-run/
+
 # IDE workspace metadata (Eclipse/STS)
 .metadata/
 .project

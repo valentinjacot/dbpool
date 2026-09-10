@@ -98,9 +98,12 @@ attach the Java Agent to the three app services.
    - SSL: disabled
    `appd_monitor` already has `pg_monitor` (read access to `pg_stat_*`) plus
    `SELECT` on the `appdb` schema, granted in `db/init.sql`.
-4. **Anomaly Detection baseline**: run `loadtest/normal.js` for a few
-   minutes first so the later spike from `loadtest/overload.js` /
-   `loadtest/overload.sh` is recognized as an anomaly.
+4. **Anomaly Detection baseline**: needs sustained normal traffic before
+   the later spike will register as an anomaly rather than just noise.
+   `loadtest/normal.js` works for a quick few-minute check; for actually
+   training the baseline, use `loadtest/baseline-24h.sh start` (runs
+   unattended in the background, default 24h, same traffic profile as
+   `normal.js` - see `RUNBOOK.md` section 4 for usage/monitoring).
 5. **Health Rule "Pool Exhaustion"**:
    - Condition 1: custom metric `ThreadsAwaitingConnection > 0` (Warning),
      `>= 5` (Critical), 1 min. (Same thresholds already used in the Grafana
