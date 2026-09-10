@@ -202,34 +202,43 @@ Actuator-Metriken.
 curl -s http://localhost:8081/actuator/metrics/hikaricp.connections.active
 ```
 
-## 8. Phase 2 vorbereitet (Agenten vorhanden, Controller-Zugang steht noch aus)
+## 8. Phase 2 aktiv (Controller-Zugang vorhanden)
 
-Die AppDynamics-Agent-Binaries (Java Agent, Database Agent, Machine Agent)
-sind bereits heruntergeladen, unter `./agents/` entpackt (nicht committed)
-und in `docker-compose.yml` verdrahtet. Getestet mit einem ungueltigen
-Controller-Host: alle drei Agenten starten sauber, lesen ihre Konfiguration
-korrekt aus den Umgebungsvariablen und scheitern erwartungsgemaess nur an
-der DNS-Aufloesung des Controllers. Details siehe `appd/healthrules.md`.
+Controller-Zugang ist eingerichtet (`se-lab.saas.appdynamics.com`), alle
+drei Agenten laufen und sind erfolgreich registriert:
 
-Solange `.env` keine echten Controller-Werte enthaelt, bleibt der Stack
+- **Java Agent** auf `frontend`/`orders`/`inventory` (`AGENT_ENABLED=true`
+  in `.env`, siehe `appd/entrypoint.sh`).
+- **Database Agent** als Container `db-agent`
+  (`docker compose --profile appd up -d db-agent`, Bild
+  `appdynamics/db-agent:latest`).
+- **Machine Agent** direkt auf dem Host, nicht im Container (ein
+  containerisierter Machine Agent bekaeme nur einen weiteren zufaelligen
+  Container-Hostnamen, nicht besser korreliert mit den App-Tiers als jeder
+  andere Container). Start/Stop/Status:
+
+  ```bash
+  ./appd/machine-agent/run.sh start
+  ./appd/machine-agent/run.sh status
+  ./appd/machine-agent/run.sh logs
+  ./appd/machine-agent/run.sh stop
+  ```
+
+  Laeuft mit `APPDYNAMICS_AGENT_UNIQUE_HOST_ID=afi-demo-host`, damit die
+  gesamte Demo-Umgebung eine stabile, wiedererkennbare Host-Identitaet hat
+  statt eines zufaelligen Hostnamens.
+
+Falls `.env` keine echten Controller-Werte enthaelt, bleibt der Stack
 100% Phase-1-Verhalten: `docker compose up -d` startet den Java Agent nicht
-(`AGENT_ENABLED=false`), und `db-agent`/`machine-agent` starten ueberhaupt
-nicht (Compose-Profile `appd`, nicht Teil des Standard-Starts).
+(`AGENT_ENABLED=false`), `db-agent` startet ueberhaupt nicht
+(Compose-Profil `appd`, nicht Teil des Standard-Starts), und
+`run.sh start` verbindet sich einfach nicht (kein Schaden, keine Aenderung
+am Phase-1-Stack).
 
-Sobald Controller-Zugang existiert:
-
-```bash
-# In .env setzen: AGENT_ENABLED=true, CONTROLLER_HOST, CONTROLLER_PORT,
-# SSL_ENABLED, ACCOUNT_NAME, ACCOUNT_ACCESS_KEY
-docker compose up -d                          # frontend/orders/inventory neu mit Java Agent
-docker compose --profile appd up -d db-agent machine-agent
-```
-
-Danach in der Controller-UI pruefen: 3 Tiers + 1 DB-Node + 1 Host-Node = 5
-Komponenten auf der Flow Map. Die weiteren Schritte (JMX-Metric-Regel,
-PostgreSQL-Collector, Anomaly-Detection-Baseline, Health Rule, Policy/
-Action) sind in `appd/healthrules.md` vorbereitet und werden nach dem
-ersten Controller-Zugriff hier im Runbook ergaenzt.
+In der Controller-UI pruefen: 3 Tiers + 1 DB-Node + 1 Host-Node
+(`afi-demo-host`) = 5 Komponenten auf der Flow Map. Die weiteren Schritte
+(JMX-Metric-Regel, PostgreSQL-Collector, Anomaly-Detection-Baseline,
+Health Rule, Policy/Action) sind in `appd/healthrules.md` dokumentiert.
 
 ## Demo-Ablauf (Zielbild, inkl. Phase 2)
 

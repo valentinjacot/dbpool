@@ -37,24 +37,31 @@ Agent binaries live under `./agents/` (gitignored, not committed):
   new agent ID - if you reconfigure/rebuild this service, re-point the
   Database Collector in the controller UI at the current one (the old
   agent ID just goes stale/offline).
-- `agents/machine-agent/` - AppDynamics Machine Agent, Linux 64-bit bundle
-  (own bundled JRE 17). Runs as the `machine-agent` service (compose
-  profile `appd`), image built from `appd/machine-agent/Dockerfile`
-  (debian:bookworm-slim + findutils/procps/ca-certificates). Verified:
-  agent starts, `APPDYNAMICS_SIM_ENABLED=true` correctly activates Server
-  Visibility (it POSTs to `.../controller/sim/v2/agent/machines`), fails
-  only on DNS resolution of the dummy host.
+- **Machine Agent**: runs directly on the host, not in a container - see
+  `appd/machine-agent/run.sh` (`start`/`stop`/`status`/`logs`). A
+  containerized Machine Agent just gets its own ephemeral per-container
+  hostname, no more correlated with the app tiers' hosts than any other
+  container; running it on the host instead gives the whole demo
+  environment one stable identity. `run.sh` sources `.env` for controller
+  settings, sets `APPDYNAMICS_SIM_ENABLED=true` (Server Visibility) and
+  `APPDYNAMICS_AGENT_UNIQUE_HOST_ID=afi-demo-host`. `conf/controller-info.xml`
+  also has `<sim-enabled>true</sim-enabled>` set directly, though the env
+  var already takes precedence. Verified against the real controller:
+  `Machine Agent registered successfully with machineID: 740318 and
+  hostID: afi-demo-host`, `Started AppDynamics Machine Agent Successfully`,
+  hardware data collectors (CPU/memory/network/disk) running on schedule,
+  no errors.
 - `agents/smart-agent/` - extracted but **not wired in**. This is
   AppDynamics' newer OTel-based auto-instrumentation agent, an alternative
   to the classic Java Agent approach above. Not part of the current plan;
   kept in case it's wanted later instead of/alongside the Java Agent.
 
-None of the `appd`-profile services start with a plain `docker compose up
--d` (Phase 1 behaviour is untouched). Start them explicitly once `.env` has
-real controller values:
+None of this starts with a plain `docker compose up -d` (Phase 1 behaviour
+is untouched). Start it explicitly once `.env` has real controller values:
 
 ```bash
-docker compose --profile appd up -d db-agent machine-agent
+docker compose --profile appd up -d db-agent   # DB Agent (container)
+./appd/machine-agent/run.sh start              # Machine Agent (host process)
 ```
 
 and flip `AGENT_ENABLED=true` in `.env` before `docker compose up -d` to
