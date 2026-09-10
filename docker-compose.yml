@@ -130,7 +130,10 @@ services:
   # --profile appd up -d` once controller keys are set in .env) ----
 
   db-agent:
-    build: ./agents/db-agent
+    # Official prebuilt image (the extracted bundle under ./agents/db-agent
+    # no longer ships its own Dockerfile as of the 26.x line - AppD now
+    # points at this image instead). Same env var contract either way.
+    image: appdynamics/db-agent:latest
     container_name: afi-db-agent
     profiles: ["appd"]
     depends_on:

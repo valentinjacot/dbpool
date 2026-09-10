@@ -1,10 +1,13 @@
 # AppDynamics Health Rule / Policy / Action setup
 
-Status: agent binaries downloaded, extracted, wired into `docker-compose.yml`
-and verified to build/boot correctly (see below). Still missing: controller
-access (`CONTROLLER_HOST`, `ACCOUNT_NAME`, `ACCOUNT_ACCESS_KEY` in `.env`).
-Everything in this file that depends on the controller UI is a placeholder
-until then.
+Status: controller access is live (`se-lab.saas.appdynamics.com`, account
+`se-lab`). All three agents (Java Agent on `frontend`/`orders`/`inventory`,
+DB Agent, Machine Agent) are running with `AGENT_ENABLED=true` and have
+successfully registered with the real controller - see confirmation details
+below. Application `AFI-UC3-Demo` (Application ID 10564) should already show
+the 3 tiers on the flow map. Remaining work is controller-UI configuration:
+PostgreSQL collector, JMX metric rule, Anomaly Detection baseline, Health
+Rule, Policy/Action (items 2-6 below).
 
 ## What is already wired and tested
 
@@ -18,16 +21,22 @@ Agent binaries live under `./agents/` (gitignored, not committed):
   host, the agent logged `Started AppDynamics Java Agent Successfully.`,
   picked up the correct tier/node/application names, and the app kept
   serving traffic (agent registration failure is non-blocking).
-- `agents/db-agent/` - AppDynamics Database Agent (extracted
-  `db-agent-*.zip`, which ships its own `Dockerfile` and
-  `README-to-run-dbagent-in-docker.md` - reused as-is). Built and started
-  as the `db-agent` service (compose profile `appd`). Verified: agent
-  starts, resolves `APPDYNAMICS_CONTROLLER_HOST_NAME` /
-  `APPDYNAMICS_CONTROLLER_PORT` / `APPDYNAMICS_CONTROLLER_SSL_ENABLED` /
-  `APPDYNAMICS_AGENT_ACCOUNT_NAME` / `APPDYNAMICS_AGENT_ACCOUNT_ACCESS_KEY`
-  from environment variables, and only fails at the DNS lookup step with a
-  dummy host - i.e. it registers correctly and just needs a real
-  controller to talk to.
+- **Database Agent**: `db-agent` service (compose profile `appd`) runs the
+  official prebuilt image `appdynamics/db-agent:latest` from Docker Hub
+  (currently v26.7.0.5723). Earlier versions shipped their own Dockerfile
+  inside the downloaded zip and we built a local image from it; the 26.x
+  line dropped that in favour of the published image, so `docker-compose.yml`
+  now points `image:` at it directly - no local build, no bind mount of
+  `./agents/db-agent` needed. Same `APPDYNAMICS_*` env var contract either
+  way. This image also self-redacts the access key in its own startup log
+  line (`MASKED_DB_AGENT_PROPERTIES=...`), so no local patch was needed here
+  (unlike the older version, where we had to patch the vendor script
+  locally). Verified against the real `se-lab` controller: `Auto agent
+  registration SUCCEEDED!`, `Registered DB_AGENT with agentID[...]`,
+  `Started afi-uc3-db-agent successfully`. Each container restart gets a
+  new agent ID - if you reconfigure/rebuild this service, re-point the
+  Database Collector in the controller UI at the current one (the old
+  agent ID just goes stale/offline).
 - `agents/machine-agent/` - AppDynamics Machine Agent, Linux 64-bit bundle
   (own bundled JRE 17). Runs as the `machine-agent` service (compose
   profile `appd`), image built from `appd/machine-agent/Dockerfile`
@@ -51,13 +60,12 @@ docker compose --profile appd up -d db-agent machine-agent
 and flip `AGENT_ENABLED=true` in `.env` before `docker compose up -d` to
 attach the Java Agent to the three app services.
 
-## Still to do once controller access exists
+## Remaining controller-UI steps
 
-1. Set `CONTROLLER_HOST`, `CONTROLLER_PORT`, `SSL_ENABLED`, `ACCOUNT_NAME`,
-   `ACCOUNT_ACCESS_KEY` in `.env`, set `AGENT_ENABLED=true`, restart the app
-   services, start `db-agent` and `machine-agent`. Confirm in the
-   controller UI: 3 tiers (`frontend`, `orders`, `inventory`) + 1 database
-   node + 1 host node = 5 components on the flow map.
+1. ~~Set controller env vars, `AGENT_ENABLED=true`, start `db-agent` and
+   `machine-agent`.~~ Done. Confirm in the controller UI: 3 tiers
+   (`frontend`, `orders`, `inventory`) + 1 database node + 1 host node = 5
+   components on the flow map.
 2. **JMX metric rule (Way A, preferred)**: in the controller, capture
    `ThreadsAwaitingConnection` from the MBean
    `com.zaxxer.hikari:type=Pool (orders-pool)` on the `orders` tier as a
@@ -67,9 +75,17 @@ attach the Java Agent to the three app services.
    preview/validation of this exact signal - see
    `observability/grafana/provisioning/dashboards/pool-overload.json`.)
    Alternative (Way B): Machine Agent JMX extension, same MBean/attribute.
-3. **PostgreSQL collector**: in the controller, add a collector for host
-   `postgres`, port 5432, using the `appd_monitor` role (already created in
-   `db/init.sql`, read-only via `pg_monitor`).
+3. **PostgreSQL collector**: in the controller (Database Monitoring / add
+   PostgreSQL instance), point it at the currently-registered DB Agent
+   (agent ID logged at `db-agent` startup, changes on every
+   restart/rebuild - see above), with:
+   - Host: `postgres`, Port: `5432` (Docker Compose service name/internal
+     port - not `localhost:5433`, which is only the host-machine mapping)
+   - Database: `appdb`
+   - Username: `appd_monitor` / Password: `appd_monitor_pass` (from `.env`)
+   - SSL: disabled
+   `appd_monitor` already has `pg_monitor` (read access to `pg_stat_*`) plus
+   `SELECT` on the `appdb` schema, granted in `db/init.sql`.
 4. **Anomaly Detection baseline**: run `loadtest/normal.js` for a few
    minutes first so the later spike from `loadtest/overload.js` /
    `loadtest/overload.sh` is recognized as an anomaly.
