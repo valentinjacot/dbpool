@@ -163,8 +163,8 @@ Erwartung: Meldungen wie
 
 ```
 com.zaxxer.hikari.pool.HikariPool$PoolInitializationException
-... Connection is not available, request timed out after 3000ms
-SQLTransientConnectionException: orders-pool - Connection is not available, request timed out after 3000ms
+... Connection is not available, request timed out after 10000ms
+SQLTransientConnectionException: orders-pool - Connection is not available, request timed out after 10000ms
 ```
 
 sowie HTTP 502-Antworten vom `frontend` (Kette propagiert den Fehler von

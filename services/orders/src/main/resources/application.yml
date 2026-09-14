@@ -10,7 +10,7 @@ spring:
     password: apppass
     hikari:
       maximum-pool-size: 5
-      connection-timeout: 3000       # 3s -> fast, visible errors
+      connection-timeout: 10000      # 10s -> fast, visible errors
       pool-name: orders-pool
       register-mbeans: true          # expose HikariCP JMX MBeans (Phase 2 JMX rule)
 
