@@ -12,15 +12,17 @@ if [ "${AGENT_ENABLED:-false}" = "true" ]; then
     [ -n "${CONTROLLER_PORT:-}" ] && OPTS="$OPTS -Dappdynamics.controller.port=${CONTROLLER_PORT}"
     [ -n "${SSL_ENABLED:-}" ] && OPTS="$OPTS -Dappdynamics.controller.ssl.enabled=${SSL_ENABLED}"
     [ -n "${ACCOUNT_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.accountName=${ACCOUNT_NAME}"
-    [ -n "${ACCOUNT_ACCESS_KEY:-}" ] && OPTS="$OPTS -Dappdynamics.agent.accountAccessKey=${ACCOUNT_ACCESS_KEY}"
     [ -n "${APPD_APPLICATION_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.applicationName=${APPD_APPLICATION_NAME}"
     [ -n "${APPD_TIER_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.tierName=${APPD_TIER_NAME}"
     [ -n "${APPD_NODE_NAME:-}" ] && OPTS="$OPTS -Dappdynamics.agent.nodeName=${APPD_NODE_NAME}"
     [ -n "${APPD_UNIQUE_HOST_ID:-}" ] && OPTS="$OPTS -Dappdynamics.agent.uniqueHostId=${APPD_UNIQUE_HOST_ID}"
-    # Redact the access key before logging - OPTS itself keeps the real
-    # value for the actual java invocation below.
-    SAFE_OPTS=$(echo "$OPTS" | sed -E 's/(accountAccessKey=)[^ ]+/\1****/')
-    echo "[appd] agent enabled: $SAFE_OPTS"
+    # Access key deliberately NOT passed as -D: JVM args are visible to any
+    # local user via `ps aux` / /proc/<pid>/cmdline. Pass it as a plain env
+    # var instead (APPDYNAMICS_AGENT_ACCOUNT_ACCESS_KEY, which the agent
+    # reads directly) - env vars are only readable via /proc/<pid>/environ,
+    # restricted to the process owner and root.
+    [ -n "${ACCOUNT_ACCESS_KEY:-}" ] && export APPDYNAMICS_AGENT_ACCOUNT_ACCESS_KEY="${ACCOUNT_ACCESS_KEY}"
+    echo "[appd] agent enabled: $OPTS"
 else
     echo "[appd] AGENT_ENABLED != true, starting agent-free"
 fi
