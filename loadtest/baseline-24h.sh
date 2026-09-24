@@ -66,8 +66,14 @@ run_loop() {
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
         (curl -s -o /dev/null -w "%{http_code}\n" --max-time 15 "${base_url}/api/shop/checkout" >> "$RESULTS_FILE" 2>/dev/null) &
+        pid1=$!
         (curl -s -o /dev/null -w "%{http_code}\n" --max-time 15 "${base_url}/api/shop/checkout" >> "$RESULTS_FILE" 2>/dev/null) &
-        wait
+        pid2=$!
+        # Wait on these two specific PIDs, NOT a bare `wait` - the
+        # reporting subshell above is an intentionally infinite background
+        # job, and a bare `wait` blocks until ALL jobs finish, which would
+        # hang here forever.
+        wait "$pid1" "$pid2" 2>/dev/null
         sleep 1
 
         now=$(date +%s)

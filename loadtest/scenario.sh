@@ -36,8 +36,13 @@ echo "=== Phase 1: baseline for ${BASELINE_SECONDS}s (~2 req/s, pool stays calm)
 baseline_end=$(( $(date +%s) + BASELINE_SECONDS ))
 while [ "$(date +%s)" -lt "$baseline_end" ]; do
     curl -s -o /dev/null --max-time 15 "${BASE_URL}/api/shop/checkout" &
+    pid1=$!
     curl -s -o /dev/null --max-time 15 "${BASE_URL}/api/shop/checkout" &
-    wait
+    pid2=$!
+    # Wait on these two specific PIDs, NOT a bare `wait` - the reporting
+    # subshell above is an intentionally infinite background job, and a
+    # bare `wait` blocks until ALL jobs finish, hanging here forever.
+    wait "$pid1" "$pid2" 2>/dev/null
     sleep 1
 done
 
