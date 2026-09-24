@@ -9,6 +9,11 @@
 # whole run - that's the point, it's what "normal" should look like to
 # Anomaly Detection.
 #
+# Also runs the always-on low-rate reporting scenario (Phase 3, CLAUDE.md)
+# for the same duration - reporting's own baseline needs training too. Rate
+# via REPORTING_RATE_PER_MIN env var (default 3/min); target via
+# REPORTING_URL env var (default http://localhost:8084).
+#
 # Usage: ./loadtest/baseline-24h.sh [start|stop|status|logs] [duration_seconds] [base_url]
 #   start defaults: duration 86400 (24h), base_url http://localhost:8080
 #
@@ -29,6 +34,10 @@ LOGFILE="$STATE_DIR/baseline.log"
 SUMMARY_FILE="$STATE_DIR/baseline.summary.log"
 RESULTS_FILE="$STATE_DIR/baseline.results"
 
+REPORTING_URL="${REPORTING_URL:-http://localhost:8084}"
+REPORTING_RATE_PER_MIN="${REPORTING_RATE_PER_MIN:-3}"
+REPORTING_INTERVAL=$(awk "BEGIN { print 60 / ${REPORTING_RATE_PER_MIN} }")
+
 mkdir -p "$STATE_DIR"
 
 is_running() {
@@ -44,6 +53,16 @@ run_loop() {
 
     : > "$RESULTS_FILE"
     echo "$(date -Iseconds) baseline started, target ${base_url}, duration ${duration}s" >> "$SUMMARY_FILE"
+    echo "$(date -Iseconds) reporting control load: ${REPORTING_RATE_PER_MIN}/min against ${REPORTING_URL}/api/reporting/summary" >> "$SUMMARY_FILE"
+
+    (
+        while true; do
+            curl -s -o /dev/null --max-time 5 "${REPORTING_URL}/api/reporting/summary" 2>/dev/null || true
+            sleep "$REPORTING_INTERVAL"
+        done
+    ) &
+    reporting_pid=$!
+    trap 'kill "$reporting_pid" 2>/dev/null || true' EXIT
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
         (curl -s -o /dev/null -w "%{http_code}\n" --max-time 15 "${base_url}/api/shop/checkout" >> "$RESULTS_FILE" 2>/dev/null) &
