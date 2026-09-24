@@ -267,3 +267,104 @@ steps in Phase 2).
 - No em dashes anywhere.
 - Secrets only via `.env`, never commit. `.env` in `.gitignore`.
 - Do not commit agent jars (`agents/` in `.gitignore`, except a placeholder).
+
+## Phase 3 (optional further development): 5-service topology
+
+Status: the two-phase build above is validated and works. This phase is an
+additive evolution on top of it, not a rewrite. Do not touch the sections above.
+Only start Phase 3 once the current version is demo-proven, and keep it on a
+branch so you can fall back to the working 3-service demo.
+
+### Why
+
+Two goals at once, without inventing anything the rubric does not ask for:
+- More topological depth: the anomaly climbs a call chain over several tiers,
+  which strengthens the "frueh erkannt und propagiert" story.
+- A healthy control service that exonerates the database live: a second consumer
+  of the same PostgreSQL that stays green while `orders` fails. Same dependency,
+  different outcome, so the fault is the pool, not the DB. This is a live
+  differential diagnosis the evaluators grasp instantly.
+
+Component count becomes 5 services + PostgreSQL + host = 7. Removes any doubt
+about the "at least 5 components" requirement.
+
+### Target topology (evolved)
+
+```
+frontend --> checkout --> orders    --JDBC--> PostgreSQL   (constrained pool, failing path)
+                    \---> inventory --JDBC--> PostgreSQL   (normal pool, healthy)
+reporting --------------------------JDBC--> PostgreSQL     (healthy CONTROL, own pool, very low load)
+```
+
+Two new services to add: `checkout` (orchestrator) and `reporting` (independent
+control consumer of the DB).
+
+Delta to the existing topology:
+- Insert `checkout` between `frontend` and the downstream services. `frontend`
+  now calls `checkout` instead of calling `orders`/`inventory` directly.
+  `checkout` calls `orders` and `inventory`. This makes the overload propagate
+  two levels: `orders` critical -> `checkout` inherits -> `frontend` inherits.
+- Add `reporting` as a standalone service that only reads from PostgreSQL.
+
+### New services: rules
+
+- `checkout` (orchestrator): normal pool (e.g. 10), no slow path of its own. It
+  just fans out to `orders` and `inventory`. Its only job here is to carry the
+  propagation up the chain. Java agent, own tier/node name, same
+  `uniqueHostId=afi-demo-host`, `register-mbeans=true`.
+- `reporting` (the control, must stay healthy): this service must NEVER saturate
+  the database, otherwise the whole "pool, not DB" argument collapses. Therefore:
+  - Comfortable pool (e.g. 10), its own HikariCP pool (automatic per JVM).
+  - Fast, real read queries only: aggregations over the seeded data. NEVER
+    `pg_sleep`, never connection-holding.
+  - Very low, steady load (see load profile). It stays a flat green line through
+    baseline and overload alike.
+  - Java agent, own tier/node name, same `uniqueHostId`, `register-mbeans=true`
+    (so you can show its pool is calm as a contrast metric).
+
+The pool-overload mechanism (small pool + `pg_sleep` + high concurrency) stays
+UNIQUE to `orders`. Do not replicate it anywhere else.
+
+### Load generation changes
+
+- Keep the existing overload profile exactly as is: high concurrency on the
+  `orders/slow` path (now reached via `checkout`), phases baseline vs problem.
+- Add a separate, always-on, very low-rate scenario for `reporting`: a few calls
+  per minute, steady, running in BOTH baseline and problem phases (e.g. k6
+  constant-arrival-rate at roughly 2 to 5 iterations per minute). New env vars:
+  `REPORTING_RATE_PER_MIN` (default 3), applied to the reporting scenario only.
+- The reporting rate must stay low enough that DB CPU, locks and connections
+  never move. If in doubt, lower it. Its purpose is to prove the DB serves a
+  second consumer fine, not to add load.
+- Mirror the same low-rate reporting path in the bash fallback.
+
+### Build order (Phase 3, additive)
+
+1. Add `services/checkout` and `services/reporting` (Spring Boot, Actuator +
+   Micrometer + `register-mbeans`, same agent wiring pattern as the others).
+2. Rewire `frontend` to call `checkout`; wire `checkout` to call `orders` and
+   `inventory`. `reporting` reads PostgreSQL directly with fast aggregations.
+3. Add the low-rate reporting scenario to the load scripts (`normal.js`,
+   `overload.js`, `overload.sh`) with `REPORTING_RATE_PER_MIN`.
+4. Cap each service heap (e.g. `-Xmx256m`) in docker-compose. Five instrumented
+   JVMs + PostgreSQL + Machine and DB agents on a small laptop is heavy; if the
+   box swaps, the live demo stumbles and that alone can sink the UC3 score. Start
+   everything, pre-warm the baseline, and confirm the host is not thrashing
+   before presenting.
+5. Verify: trigger the overload and confirm it propagates
+   `orders -> checkout -> frontend` on the flow map, while `reporting` stays
+   green throughout. Confirm `reporting`'s pool metric never shows waiting
+   threads.
+6. Extend `RUNBOOK.md` (in German) with the new flow-map walk and the DB
+   exoneration beat below.
+
+### RUNBOOK addition (write in German)
+
+- Neue Flow Map zeigen: `frontend -> checkout -> orders -> DB`, dazu
+  `checkout -> inventory -> DB` und der unabhaengige `reporting -> DB`.
+  7 Komponenten (5 Services + DB + Host).
+- Beim Overload live zeigen: `orders` wird kritisch und faerbt ueber `checkout`
+  bis `frontend` durch (Propagation ueber zwei Ebenen).
+- Gleichzeitig bleibt `reporting` gruen, obwohl es dieselbe PostgreSQL nutzt.
+  Aussage: gleiche Datenbank, anderes Ergebnis, also liegt der Engpass im Pool
+  von `orders`, nicht in der DB. Das ist die Live-Differenzialdiagnose.
