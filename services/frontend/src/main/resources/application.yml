@@ -6,8 +6,7 @@ spring:
     name: frontend
 
 services:
-  orders-url: http://orders:8081
-  inventory-url: http://inventory:8082
+  checkout-url: http://checkout:8083
 
 management:
   endpoints:

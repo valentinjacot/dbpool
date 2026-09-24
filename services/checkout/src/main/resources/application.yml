@@ -1,0 +1,30 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: checkout
+  datasource:
+    url: jdbc:postgresql://postgres:5432/appdb
+    username: appuser
+    password: apppass
+    hikari:
+      maximum-pool-size: 10
+      pool-name: checkout-pool
+      register-mbeans: true
+
+services:
+  orders-url: http://orders:8081
+  inventory-url: http://inventory:8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    enable:
+      hikaricp: true
+  endpoint:
+    health:
+      show-details: always

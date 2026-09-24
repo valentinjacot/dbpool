@@ -1,0 +1,26 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: reporting
+  datasource:
+    url: jdbc:postgresql://postgres:5432/appdb
+    username: appuser
+    password: apppass
+    hikari:
+      maximum-pool-size: 10
+      pool-name: reporting-pool
+      register-mbeans: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    enable:
+      hikaricp: true
+  endpoint:
+    health:
+      show-details: always

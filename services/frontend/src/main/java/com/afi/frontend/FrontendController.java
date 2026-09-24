@@ -14,32 +14,27 @@ import java.util.Map;
 public class FrontendController {
 
     private final RestClient restClient;
-    private final String ordersUrl;
-    private final String inventoryUrl;
+    private final String checkoutUrl;
 
     public FrontendController(RestClient.Builder builder,
-                               @Value("${services.orders-url}") String ordersUrl,
-                               @Value("${services.inventory-url}") String inventoryUrl) {
+                               @Value("${services.checkout-url}") String checkoutUrl) {
         this.restClient = builder.build();
-        this.ordersUrl = ordersUrl;
-        this.inventoryUrl = inventoryUrl;
+        this.checkoutUrl = checkoutUrl;
     }
 
     /**
-     * Chains frontend -> orders/slow so the pool overload on orders is
-     * visible from the frontend tier too (anomaly propagation up the flow map).
+     * Chains frontend -> checkout -> orders/slow so the pool overload on
+     * orders is visible two tiers up (anomaly propagation across the flow
+     * map: orders -> checkout -> frontend, see Phase 3 in CLAUDE.md).
      */
     @GetMapping("/api/shop/checkout")
     public ResponseEntity<Map<String, Object>> checkout() {
         try {
-            Map<?, ?> orderResult = restClient.get().uri(ordersUrl + "/api/orders/slow")
+            Map<?, ?> checkoutResult = restClient.get().uri(checkoutUrl + "/api/checkout")
                     .retrieve().body(Map.class);
-            Object inventoryResult = restClient.get().uri(inventoryUrl + "/api/inventory")
-                    .retrieve().body(Object.class);
             return ResponseEntity.ok(Map.of(
                     "status", "ok",
-                    "order", orderResult,
-                    "inventory", inventoryResult
+                    "checkout", checkoutResult
             ));
         } catch (RestClientException e) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)

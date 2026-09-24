@@ -138,6 +138,46 @@
           "legendFormat": "backends on appdb"
         }
       ]
+    },
+    {
+      "id": 7,
+      "title": "Checkout pool - active connections (propagates the failure, stays calm itself)",
+      "description": "Checkout (Phase 3) fans out to orders/inventory and does one fast local insert per call. It relays orders' failures upward but its own pool (size 10) never saturates - the fault is orders' pool, not checkout's.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{pool=\"checkout-pool\"}",
+          "legendFormat": "active"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Reporting pool - active connections (independent control, must stay flat)",
+      "description": "Reporting (Phase 3) is a standalone consumer of the same PostgreSQL, fast aggregation reads only. It should stay a flat, calm line through baseline and overload alike - the live differential diagnosis: same database, different outcome, so the bottleneck is the orders pool, not the DB.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus_uc3" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{pool=\"reporting-pool\"}",
+          "legendFormat": "active"
+        },
+        {
+          "expr": "hikaricp_connections_pending{pool=\"reporting-pool\"}",
+          "legendFormat": "pending"
+        }
+      ]
     }
   ]
 }

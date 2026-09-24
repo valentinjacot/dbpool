@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Phase 3: checkout's own fast, non-blocking DB touch (its HikariCP pool
+-- stays calm throughout, unlike orders' - see CLAUDE.md Phase 3).
+CREATE TABLE IF NOT EXISTS checkout_log (
+    id          SERIAL PRIMARY KEY,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 INSERT INTO products (sku, name, price_cents) VALUES
     ('SKU-001', 'Widget A', 1999),
     ('SKU-002', 'Widget B', 2999),

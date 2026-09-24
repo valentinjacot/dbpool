@@ -4,10 +4,12 @@
 # (agent-free). Additive, no application code changes (CLAUDE.md Phase 2).
 set -eu
 
-OPTS=""
+# Heap cap (Phase 3, CLAUDE.md): 5 instrumented JVMs + Postgres + DB/Machine
+# agent on a small laptop is heavy - applied always, agent-free or not.
+OPTS="-Xmx${JAVA_MAX_HEAP:-256m}"
 
 if [ "${AGENT_ENABLED:-false}" = "true" ]; then
-    OPTS="-javaagent:/opt/appdynamics/javaagent.jar"
+    OPTS="$OPTS -javaagent:/opt/appdynamics/javaagent.jar"
     [ -n "${CONTROLLER_HOST:-}" ] && OPTS="$OPTS -Dappdynamics.controller.hostName=${CONTROLLER_HOST}"
     [ -n "${CONTROLLER_PORT:-}" ] && OPTS="$OPTS -Dappdynamics.controller.port=${CONTROLLER_PORT}"
     [ -n "${SSL_ENABLED:-}" ] && OPTS="$OPTS -Dappdynamics.controller.ssl.enabled=${SSL_ENABLED}"

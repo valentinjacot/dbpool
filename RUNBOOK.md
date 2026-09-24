@@ -96,7 +96,7 @@ verbleibende Zeit). Getestet mit einem 20s-Lauf: startet im Hintergrund,
 laeuft die volle Dauer durch, beendet sich selbst, raeumt die Pid-Datei
 auf, 0 Fehler.
 
-## 5. Ueberlastung auslösen
+## 5. Ueberlastung ausloesen
 
 Mit k6:
 
@@ -265,6 +265,50 @@ In der Controller-UI pruefen: 3 Tiers + 1 DB-Node + 1 Host-Node
 (`afi-demo-host`) = 5 Komponenten auf der Flow Map. Die weiteren Schritte
 (JMX-Metric-Regel, PostgreSQL-Collector, Anomaly-Detection-Baseline,
 Health Rule, Policy/Action) sind in `appd/healthrules.md` dokumentiert.
+
+## 9. Phase 3 (Branch, 5-Service-Topologie)
+
+Auf dem Branch `phase3-5-service-topology` (noch nicht auf `main`): zwei neue
+Services, `checkout` (Orchestrator zwischen `frontend` und `orders`/
+`inventory`) und `reporting` (unabhaengiger, gesunder Kontroll-Konsument
+derselben PostgreSQL). `frontend` ruft neu `checkout` auf statt `orders`/
+`inventory` direkt, `checkout` faechert an `orders/slow` und `inventory`
+auf. `reporting` liest nur schnelle Aggregationen, nie `pg_sleep`, eigener
+Pool (`reporting-pool`, Groesse 10).
+
+```bash
+git checkout phase3-5-service-topology
+docker compose down -v   # frischer DB-Init noetig (neue Tabelle checkout_log)
+docker compose up -d --build
+```
+
+Kette pruefen (jetzt vier Sprungstellen):
+
+```bash
+curl -s http://localhost:8080/api/shop/checkout | jq   # frontend -> checkout -> orders + inventory
+curl -s http://localhost:8084/api/reporting/summary | jq
+```
+
+Ueberlastung wie gewohnt starten (`overload.js`/`overload.sh`), zusaetzlich
+laeuft jetzt in beiden Skripten eine dauerhafte, sehr niedrigfrequente
+Kontroll-Last gegen `reporting` (Standard 3 Aufrufe/Minute, ueber
+`REPORTING_RATE_PER_MIN` einstellbar).
+
+- Neue Flow Map zeigen: `frontend -> checkout -> orders -> DB`, dazu
+  `checkout -> inventory -> DB` und der unabhaengige `reporting -> DB`.
+  7 Komponenten (5 Services + DB + Host).
+- Beim Overload live zeigen: `orders` wird kritisch und faerbt ueber
+  `checkout` bis `frontend` durch (Propagation ueber zwei Ebenen).
+- Gleichzeitig bleibt `reporting` gruen, obwohl es dieselbe PostgreSQL
+  nutzt. Aussage: gleiche Datenbank, anderes Ergebnis, also liegt der
+  Engpass im Pool von `orders`, nicht in der DB. Das ist die
+  Live-Differenzialdiagnose.
+- Im Grafana-Dashboard (http://localhost:3001) zeigen die zwei neuen Panels
+  "Checkout pool" und "Reporting pool" denselben Kontrast bereits ohne
+  AppD: `checkout` bleibt ruhig (eigener kleiner Insert pro Aufruf),
+  `reporting` bleibt vollstaendig flach.
+
+Rueckfall auf die validierte 3-Service-Demo: `git checkout main`.
 
 ## Demo-Ablauf (Zielbild, inkl. Phase 2)
 

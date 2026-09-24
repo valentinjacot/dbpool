@@ -115,3 +115,21 @@ attach the Java Agent to the three app services.
 
 Once this is done, extend `RUNBOOK.md` with the click/command steps for the
 live demo (German, per project convention).
+
+## Phase 3 (branch `phase3-5-service-topology`, not yet on main)
+
+Evolves the topology to 5 services: `checkout` (orchestrator between
+`frontend` and `orders`/`inventory`) and `reporting` (independent, healthy
+control consumer of the same PostgreSQL). Component count target: 5 tiers +
+1 database node + 1 host node = 7 (see CLAUDE.md Phase 3 for the full spec).
+
+Both new services use the exact same wiring as `orders`/`inventory`/
+`frontend`: `appd/entrypoint.sh`, `agents/java-agent` bind mount,
+`uniqueHostId=afi-demo-host`, `register-mbeans: true`. Once merged, step 1
+above becomes: confirm 5 tiers (`frontend`, `checkout`, `orders`,
+`inventory`, `reporting`) + DB + host = 7 components on the flow map, with
+the overload propagating `orders -> checkout -> frontend` and `reporting`
+staying flat green throughout - the live differential diagnosis (same
+database, different outcome, so the fault is the orders pool, not the DB).
+`reporting`'s pool (`reporting-pool`) is worth its own JMX/Health-Rule
+contrast metric if time allows, precisely because it should never move.
