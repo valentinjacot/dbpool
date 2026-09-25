@@ -33,6 +33,7 @@ PIDFILE="$STATE_DIR/baseline.pid"
 LOGFILE="$STATE_DIR/baseline.log"
 SUMMARY_FILE="$STATE_DIR/baseline.summary.log"
 RESULTS_FILE="$STATE_DIR/baseline.results"
+REPORTING_RESULTS_FILE="$STATE_DIR/baseline.reporting.results"
 
 REPORTING_URL="${REPORTING_URL:-http://localhost:8084}"
 REPORTING_RATE_PER_MIN="${REPORTING_RATE_PER_MIN:-3}"
@@ -52,12 +53,13 @@ run_loop() {
     last_summary=$(date +%s)
 
     : > "$RESULTS_FILE"
-    echo "$(date -Iseconds) baseline started, target ${base_url}, duration ${duration}s" >> "$SUMMARY_FILE"
-    echo "$(date -Iseconds) reporting control load: ${REPORTING_RATE_PER_MIN}/min against ${REPORTING_URL}/api/reporting/summary" >> "$SUMMARY_FILE"
+    : > "$REPORTING_RESULTS_FILE"
+    echo "$(date -Iseconds) baseline started, target ${base_url}, duration ${duration}s, reporting control load ${REPORTING_RATE_PER_MIN}/min against ${REPORTING_URL}/api/reporting/summary" >> "$SUMMARY_FILE"
 
     (
         while true; do
-            curl -s -o /dev/null --max-time 5 "${REPORTING_URL}/api/reporting/summary" 2>/dev/null || true
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${REPORTING_URL}/api/reporting/summary" 2>/dev/null || echo "000")
+            echo "$code" >> "$REPORTING_RESULTS_FILE"
             sleep "$REPORTING_INTERVAL"
         done
     ) &
@@ -79,16 +81,20 @@ run_loop() {
         now=$(date +%s)
         if [ $(( now - last_summary )) -ge 300 ]; then
             total=$(wc -l < "$RESULTS_FILE" 2>/dev/null || echo 0)
-            errors=$(grep -vc "^200$" "$RESULTS_FILE" 2>/dev/null || echo 0)
+            errors=$(grep -vc "^200$" "$RESULTS_FILE" 2>/dev/null)
+            rep_total=$(wc -l < "$REPORTING_RESULTS_FILE" 2>/dev/null || echo 0)
+            rep_errors=$(grep -vc "^200$" "$REPORTING_RESULTS_FILE" 2>/dev/null)
             remaining=$(( end_time - now ))
-            echo "$(date -Iseconds) requests=${total} errors=${errors} remaining=${remaining}s" >> "$SUMMARY_FILE"
+            echo "$(date -Iseconds) requests=${total} errors=${errors} reporting_requests=${rep_total} reporting_errors=${rep_errors} remaining=${remaining}s" >> "$SUMMARY_FILE"
             last_summary=$now
         fi
     done
 
     total=$(wc -l < "$RESULTS_FILE" 2>/dev/null || echo 0)
-    errors=$(grep -vc "^200$" "$RESULTS_FILE" 2>/dev/null || echo 0)
-    echo "$(date -Iseconds) baseline finished, requests=${total} errors=${errors}" >> "$SUMMARY_FILE"
+    errors=$(grep -vc "^200$" "$RESULTS_FILE" 2>/dev/null)
+    rep_total=$(wc -l < "$REPORTING_RESULTS_FILE" 2>/dev/null || echo 0)
+    rep_errors=$(grep -vc "^200$" "$REPORTING_RESULTS_FILE" 2>/dev/null)
+    echo "$(date -Iseconds) baseline finished, requests=${total} errors=${errors} reporting_requests=${rep_total} reporting_errors=${rep_errors}" >> "$SUMMARY_FILE"
     rm -f "$PIDFILE"
 }
 
