@@ -21,15 +21,37 @@ cp .env.example .env
 
 ## 2. Stack starten
 
+Einfachster Weg, deckt alles ab (Docker-Stack, DB-Agent, Machine Agent auf
+dem Host, Health-Check):
+
+```bash
+./stack.sh start          # normaler Start, kein Rebuild
+./stack.sh start --build  # nach Code-Aenderungen
+./stack.sh status         # Container + Machine Agent + 24h-Baseline auf einen Blick
+./stack.sh stop           # alles anhalten (Container bleiben erhalten, kein down -v)
+./stack.sh restart
+```
+
+`stack.sh` startet die 24h-Baseline (`loadtest/baseline-24h.sh`) bewusst
+nicht automatisch mit, damit ein Stack-Neustart nie versehentlich einen
+laufenden Baseline-Lauf verwaist oder gegen einen kurz nicht erreichbaren
+Stack weiterlaufen laesst. Baseline separat starten, siehe Abschnitt 4.
+
+Manuell (was `stack.sh` im Hintergrund macht), falls man einzelne Teile
+gezielt steuern will:
+
 ```bash
 docker compose up -d --build
+docker compose --profile appd up -d db-agent
+./appd/machine-agent/run.sh start
 docker compose ps
 ```
 
-Erwartung: `afi-postgres`, `afi-orders`, `afi-inventory`, `afi-frontend`,
-`afi-postgres-exporter`, `afi-prometheus` und `afi-grafana` laufen. Postgres
-muss `healthy` sein, bevor `orders` und `inventory` hochfahren (Dependency in
-`docker-compose.yml`).
+Erwartung: `afi-postgres`, `afi-orders`, `afi-inventory`, `afi-checkout`,
+`afi-reporting`, `afi-frontend`, `afi-db-agent`, `afi-postgres-exporter`,
+`afi-prometheus` und `afi-grafana` laufen, dazu der Machine Agent als
+Host-Prozess. Postgres muss `healthy` sein, bevor die App-Services
+hochfahren (Dependency in `docker-compose.yml`).
 
 Health-Checks pruefen:
 
@@ -37,6 +59,8 @@ Health-Checks pruefen:
 curl -s http://localhost:8080/api/shop/health
 curl -s http://localhost:8081/actuator/health
 curl -s http://localhost:8082/actuator/health
+curl -s http://localhost:8083/actuator/health
+curl -s http://localhost:8084/actuator/health
 ```
 
 ## 3. Kette pruefen (frontend -> orders -> inventory -> DB)
