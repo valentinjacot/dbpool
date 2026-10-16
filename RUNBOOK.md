@@ -12,6 +12,69 @@ ergaenzt, sobald Controller-Zugang und Agent-Binaries vorliegen.
   `grafana/k6` (Beispiele unten), oder man nutzt den Bash-Fallback
   `loadtest/overload.sh`
 
+## Neue VM einrichten: Agenten installieren
+
+Einmaliger Schritt, nur auf einer frischen Maschine noetig (nicht auf der
+bestehenden Demo-Maschine, dort sind die Agenten bereits installiert). Ein
+frischer `git clone` bringt den Code mit, aber zwei Dinge fehlen bewusst,
+weil sie in `.gitignore` stehen:
+
+- `.env` (Secrets, siehe `.env.example`)
+- `agents/*` (lizenzierte Binaries, siehe `CLAUDE.md`: "Do not commit agent
+  jars")
+
+**Voraussetzungen auf der neuen VM:** Docker, Docker Compose, Git. Kein
+lokales JDK/Maven noetig (alles baut im Container). Der Machine Agent
+bringt seine eigene JRE mit (`agents/machine-agent/jre/`), braucht also
+auch kein Host-Java.
+
+```bash
+git clone git@github.com:valentinjacot/dbpool.git
+cd dbpool
+git checkout phase3-5-service-topology   # oder main fuer die 3-Service-Demo
+cp .env.example .env
+# .env mit echten Werten fuellen: AGENT_ENABLED=true, CONTROLLER_HOST,
+# CONTROLLER_PORT, SSL_ENABLED, ACCOUNT_NAME, ACCOUNT_ACCESS_KEY
+```
+
+**Agent-Binaries beschaffen.** Zwei Wege:
+
+**a) Von der bestehenden Maschine kopieren (am schnellsten, kein erneuter
+Portal-Login noetig):**
+
+```bash
+rsync -avz alte-maschine:/pfad/zu/dbpool/agents/java-agent/    ./agents/java-agent/
+rsync -avz alte-maschine:/pfad/zu/dbpool/agents/machine-agent/ ./agents/machine-agent/
+```
+
+Der Database Agent muss nicht kopiert werden, siehe unten.
+
+**b) Frisch vom AppDynamics-Download-Portal, falls keine bestehende
+Maschine verfuegbar ist:**
+
+- **Java Agent** ("AppServerAgent" / App Server Agent fuer Java): Zip komplett
+  nach `./agents/java-agent/` entpacken. Flach entpacken, `javaagent.jar`
+  muss direkt in diesem Ordner liegen (nicht in einem Unterordner) -
+  `docker-compose.yml` mountet genau `./agents/java-agent` als
+  `/opt/appdynamics` in alle 5 App-Services.
+- **Machine Agent**: das **Linux 64-bit**-Bundle herunterladen (wichtig: die
+  Linux-Variante, nicht die des eigenen Host-Betriebssystems - der Agent
+  laeuft als Linux-Prozess auf dem Host bzw. im Container, siehe
+  `appd/machine-agent/run.sh`). Flach nach `./agents/machine-agent/`
+  entpacken. Danach zur Sicherheit:
+  ```bash
+  chmod +x agents/machine-agent/bin/machine-agent
+  ```
+- **Database Agent**: keine manuelle Installation noetig. `docker-compose.yml`
+  zieht automatisch das offizielle Image `appdynamics/db-agent:latest` von
+  Docker Hub (siehe `appd/healthrules.md` fuer den Hintergrund, warum das
+  seit der 26.x-Version so ist statt eines lokalen Builds).
+
+Danach normal weiterfahren mit Abschnitt 1 unten (`./stack.sh start` deckt
+den Rest ab: Docker-Stack, DB-Agent-Container, Machine Agent auf dem Host).
+Details und Verifikation pro Agent (Log-Zeilen, die eine erfolgreiche
+Registrierung beim Controller zeigen) stehen in `appd/healthrules.md`.
+
 ## 1. Umgebung vorbereiten
 
 ```bash
